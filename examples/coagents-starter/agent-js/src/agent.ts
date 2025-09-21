@@ -11,15 +11,19 @@ import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
+import { ChatOllama } from "@langchain/ollama";
 
 // 1. Import necessary helpers for CopilotKit actions
-import { convertActionsToDynamicStructuredTools, CopilotKitStateAnnotation } from "@copilotkit/sdk-js/langgraph";
+import {
+  convertActionsToDynamicStructuredTools,
+  CopilotKitStateAnnotation,
+} from "@copilotkit/sdk-js/langgraph";
 
 // 2. Define our agent state, which includes CopilotKit state to
 //    provide actions to the state.
 export const AgentStateAnnotation = Annotation.Root({
   proverbs: Annotation<string[]>,
-  ...CopilotKitStateAnnotation.spec,
+  ...CopilotKitStateAnnotation.spec /* TODO figure out how to make this not any */,
 });
 
 // 3. Define the type for our agent state
@@ -42,24 +46,29 @@ const getWeather = tool(
 // 5. Put our tools into an array
 const tools = [getWeather];
 
+// 6.1 Define the model, lower temperature for deterministic responses
+const model = new ChatOllama({
+  temperature: 0,
+  model: "qwen3:14b",
+  // baseUrl: "http://doom.lan:11434",
+  baseUrl: process.env.LLM_BASE_URL || "http://127.0.0.1:11434",
+});
 // 6. Define the chat node, which will handle the chat logic
 async function chat_node(state: AgentState, config: RunnableConfig) {
-  // 6.1 Define the model, lower temperature for deterministic responses
-  const model = new ChatOpenAI({ temperature: 0, model: "gpt-4o" });
-
+  console.log("Chat node state:", JSON.stringify(state, null, 2));
   // 6.2 Bind the tools to the model, include CopilotKit actions. This allows
   //     the model to call tools that are defined in CopilotKit by the frontend.
-  const modelWithTools = model.bindTools!(
-    [
-      ...(state.copilotkit?.actions ?? []),
-      ...tools,
-    ],
-  );
+  const modelWithTools = model.bindTools!([
+    ...(state.copilotkit?.actions
+      ? convertActionsToDynamicStructuredTools(state.copilotkit.actions)
+      : []),
+    ...tools,
+  ]);
 
   // 6.3 Define the system message, which will be used to guide the model, in this case
   //     we also add in the language to use from the state.
   const systemMessage = new SystemMessage({
-    content: `You are a helpful assistant.`,
+    content: `/nothink You are a helpful assistant.`,
   });
 
   // 6.4 Invoke the model with the system message and the messages in the state
@@ -87,9 +96,11 @@ function shouldContinue({ messages, copilotkit }: AgentState) {
 
     // 7.3 Only route to the tool node if the tool call is not a CopilotKit action
     if (!actions || actions.every((action) => action.name !== toolCallName)) {
-      return "tool_node"
+      return "tool_node";
     }
   }
+
+  console.log(JSON.stringify(lastMessage, null, 2));
 
   // 7.4 Otherwise, we stop (reply to the user) using the special "__end__" node
   return "__end__";
@@ -101,7 +112,7 @@ const workflow = new StateGraph(AgentStateAnnotation)
   .addNode("tool_node", new ToolNode(tools))
   .addEdge(START, "chat_node")
   .addEdge("tool_node", "chat_node")
-  .addConditionalEdges("chat_node", shouldContinue as any);
+  .addConditionalEdges("chat_node", shouldContinue);
 
 const memory = new MemorySaver();
 
