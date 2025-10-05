@@ -7,8 +7,18 @@ import { z } from "zod";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { tool } from "@langchain/core/tools";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
-import { MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import {
+  AIMessage,
+  BaseMessage,
+  SystemMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
+import {
+  interrupt,
+  MemorySaver,
+  START,
+  StateGraph,
+} from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatOllama } from "@langchain/ollama";
@@ -31,15 +41,12 @@ export type AgentState = typeof AgentStateAnnotation.State;
 
 // 4. Define a simple tool to get the weather statically
 const getWeather = tool(
-  (args) => {
-    return `The weather for ${args.location} is 70 degrees.`;
+  () => {
+    return { intent: "getWeather" };
   },
   {
     name: "getWeather",
-    description: "Get the weather for a given location.",
-    schema: z.object({
-      location: z.string().describe("The location to get weather for"),
-    }),
+    description: "Get the weather.",
   }
 );
 
@@ -111,12 +118,45 @@ function shouldContinue({ messages, copilotkit }: AgentState) {
   return "__end__";
 }
 
+// we can't use instanceof because of serialization
+function isToolMessage(message: BaseMessage): message is ToolMessage {
+  return message.getType() === "tool";
+}
+
+function tool_call_router(state: AgentState, config: RunnableConfig) {
+  // Route to the appropriate tool based on the state
+  const lastMessage = state.messages[state.messages.length - 1];
+
+  if (
+    isToolMessage(lastMessage) &&
+    typeof lastMessage.content === "string" &&
+    lastMessage.content.startsWith("{") &&
+    lastMessage.content.endsWith("}")
+  ) {
+    const toolIntent = JSON.parse(String(lastMessage.content));
+    if (toolIntent.intent) {
+      console.log("Tool intent:", toolIntent);
+      const location = interrupt("Where do you want the weather for?");
+      console.log("Interrupt result:", location);
+      return {
+        messages: new ToolMessage({
+          tool_call_id: lastMessage.tool_call_id,
+          content: `The weather in ${location} is (make something up).`,
+        }),
+      };
+    }
+  }
+  return {};
+}
+
 // Define the workflow graph
 const workflow = new StateGraph(AgentStateAnnotation)
   .addNode("chat_node", chat_node)
   .addNode("tool_node", new ToolNode(tools))
+  .addNode("tool_call_router", tool_call_router)
   .addEdge(START, "chat_node")
-  .addEdge("tool_node", "chat_node")
+  .addEdge("tool_node", "tool_call_router")
+  .addEdge("tool_call_router", "chat_node")
   .addConditionalEdges("chat_node", shouldContinue);
 
 const memory = new MemorySaver();

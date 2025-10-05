@@ -1,6 +1,10 @@
 "use client";
 
-import { useCoAgent, useCopilotAction } from "@copilotkit/react-core";
+import {
+  useCoAgent,
+  useCopilotAction,
+  useLangGraphInterrupt,
+} from "@copilotkit/react-core";
 import { CopilotKitCSSProperties, CopilotSidebar } from "@copilotkit/react-ui";
 import { useState } from "react";
 
@@ -37,7 +41,7 @@ export default function CopilotKitPage() {
         labels={{
           title: "Popup Assistant",
           initial:
-            '👋 Hi, there! You\'re chatting with an agent. This agent comes with a few tools to get you started.\n\nFor example you can try:\n- **Frontend Tools**: "Set the theme to orange"\n- **Shared State**: "Write a proverb about AI"\n- **Generative UI**: "Get the weather in SF"\n\nAs you interact with the agent, you\'ll see the UI update in real-time to reflect the agent\'s **state**, **tool calls**, and **progress**.',
+            '👋 Hi, there! You\'re chatting with an agent. This agent comes with a few tools to get you started.\n\nFor example you can try:\n- **Frontend Tools**: "Set the theme to orange"\n- **Shared State**: "Write a proverb about AI"\n- **Generative UI**: "Get the weather"\n\nAs you interact with the agent, you\'ll see the UI update in real-time to reflect the agent\'s **state**, **tool calls**, and **progress**.',
         }}
       />
     </main>
@@ -79,15 +83,25 @@ function YourMainContent({ themeColor }: { themeColor: string }) {
     },
   });
 
-  //🪁 Generative UI: https://docs.copilotkit.ai/coagents/generative-ui
-  useCopilotAction({
-    name: "getWeather",
-    description: "Get the weather for a given location.",
-    available: "disabled",
-    parameters: [{ name: "location", type: "string", required: true }],
-    render: ({ args }) => {
-      return <WeatherCard location={args.location} themeColor={themeColor} />;
-    },
+  useLangGraphInterrupt({
+    render: ({ event, resolve }) => (
+      <div>
+        <p>{event.value}</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            resolve((e.target as HTMLFormElement).response.value);
+          }}
+        >
+          <input
+            type="text"
+            name="response"
+            placeholder="Enter your response"
+          />
+          <button type="submit">Submit</button>
+        </form>
+      </div>
+    ),
   });
 
   return (

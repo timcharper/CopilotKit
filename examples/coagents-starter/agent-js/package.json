@@ -16,15 +16,19 @@
   },
   "dependencies": {
     "@copilotkit/sdk-js": "^1.10.5",
-    "@langchain/anthropic": "^0.3.26",
-    "@langchain/core": "^0.3.72",
-    "@langchain/google-genai": "^0.2.16",
-    "@langchain/langgraph": "^0.4.5",
-    "@langchain/openai": "^0.6.9",
+    "@langchain/anthropic": "0.3.30",
+    "@langchain/core": "0.3.78",
+    "@langchain/google-genai": "0.2.18",
+    "@langchain/langgraph": "0.4.9",
     "@langchain/ollama": "0.2.4",
-    "zod": "3.25.67"
+    "@langchain/openai": "0.6.14",
+    "langchain": "^0.3.35",
+    "zod": "4.1.11"
   },
-  "resolutions": {
-    "@langchain/langgraph": "0.4.5"
+  "pnpm": {
+    "overrides": {
+      "@langchain/langgraph": "0.4.9",
+      "langchain": "0.3.35"
+    }
   }
 }
