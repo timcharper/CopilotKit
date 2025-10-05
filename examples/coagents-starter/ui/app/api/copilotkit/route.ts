@@ -14,7 +14,7 @@ const runtime = new CopilotRuntime({
     // remove the remote action url below too.
     //
     langGraphPlatformEndpoint({
-      deploymentUrl: "http://localhost:7000",
+      deploymentUrl: "http://localhost:8124",
       langsmithApiKey: process.env.LANGSMITH_API_KEY || "", // only used in LangGraph Platform deployments
       agents: [
         {
