@@ -47,12 +47,17 @@ const getWeather = tool(
 const tools = [getWeather];
 
 // 6.1 Define the model, lower temperature for deterministic responses
-const model = new ChatOllama({
-  temperature: 0,
-  model: "qwen3:14b",
-  // baseUrl: "http://doom.lan:11434",
-  baseUrl: process.env.LLM_BASE_URL || "http://127.0.0.1:11434",
-});
+const model =
+  process.env.LLM_TYPE === "ollama"
+    ? new ChatOllama({
+        temperature: 0,
+        model: process.env.LLM_MODEL || "qwen3:14b",
+        baseUrl: process.env.LLM_BASE_URL || "http://127.0.0.1:11434",
+      })
+    : new ChatOpenAI({
+        temperature: 0,
+        model: process.env.LLM_MODEL || "gpt-4.1",
+      });
 // 6. Define the chat node, which will handle the chat logic
 async function chat_node(state: AgentState, config: RunnableConfig) {
   console.log("Chat node state:", JSON.stringify(state, null, 2));
